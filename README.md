@@ -16,15 +16,12 @@ python .\format_novel.py --root "C:\Users\bob\Desktop\NovelOutput\AdventOfTheThr
 ```
 
 _Output:_
-###### This output is stored at the _./output_ folder and later will be sent to the Stalkers API through a http post method
+###### This output contains all novel information and chapters. It's stored at the _./output_ folder and later will be sent to the Stalkers API through a http post method
 ```json
 {
     "title": "advent of the three calamities",
     "author": "Entrail_JI",
-    "description": "<p>[From the Author of Author&#39;s POV...]\n<br/>\n
-    <br/>Emotions are like a drug to us.\n<br/>\n<br/>The more we experience them, the more we become addicted.\n<br/>
-    <br/>The hardest part is not letting them consume us.\n<br/>\n<br/>But it&#39;s already too late for me.\n<br/>
-    <br/>I&#39;ve already been swallowed whole. \n<br/>\n<br/>*** \n<br/>\n<br/>I had no knowledge of the game. \n<br/>...",
+    "description": "<p>[From the Author of Author&#39;s POV...]\n<br/>\n<br/>Emotions are like a drug to us.\n<br/>\n<br/>The more we have them, the more we become addicted\n<br/>",
     "categories": [
         "action",
         "comedy",
@@ -44,26 +41,19 @@ _Output:_
         "sliceoflife",
         "videogame"
     ],
-    "chapters": [ // all novel chapters
+    "chapters": [
         {
             "number": 1,
             "id": 1,
             "title": "Chapter 1: Prologue [1]",
-            "body": "<h1>Chapter 1: Prologue [1]</h1><p>Chapter 1: Prologue [1]</p>
-            <p>Emotions.</p><p>A strong feeling (reaction) deriving from one&#39;s circumstances, mood, or relationship with others.</p>
-            <p>I never fully understood them.</p>
-            <p>They weren&#39;t foreign to me—Anger, Sadness, Fear, Guilt...—I&#39;ve experienced them all. Plenty of times before.</p>
-            <p>As humans, we were inherently designed to feel them.</p>..."
+            "body": "<h1>Chapter 1: Prologue [1]</h1><p>Chapter 1: Prologue [1]</p><p>Emotions.</p><p>A strong feeling (reaction) deriving from one&#39;s circumstances, mood, or relationship with others.</p><p>Inever fully understood them.</p><p>They weren&#39;t foreign to me—Anger, Sadness, Fear, Guilt...—I&#39;ve experienced them all. Plenty of times before.</p><p>As humans, we were inherently designed to feel them.</p>..."
         },
         {
            "number": 2,
             "id": 2,
             "title": "Chapter 2: Julien D. Evenus [1]",
-            "body": "<h1>Chapter 2: Julien D. Evenus [1]</h1><p>Chapter 2: Julien D. Evenus [1]</p>
-            <p><i>&#39;Uh... I&#39;m still alive?&#39;</i></p>
-            <p>There was no way. But... I was starting to doubt it. That was despite feeling certain that I had drawn my last breath.</p>..."
+            "body": "<h1>Chapter 2: Julien D. Evenus [1]</h1><p>Chapter 2: Julien D. Evenus [1]</p><p><i>&#39;Uh... I&#39;m still alive?&#39;</i></p><p>There was no way. But... I was starting to doubt it. That was despite feeling certain that I had drawn my last breath.</p>..."
         }
-        ...
     ]
 }
 ```
