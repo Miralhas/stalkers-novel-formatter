@@ -1,0 +1,158 @@
+import argparse
+import json
+import logging
+import tempfile
+from pathlib import Path
+from typing import Dict, List
+
+import nh3
+from bs4 import BeautifulSoup
+from slugify import slugify
+
+logging.basicConfig(level=logging.INFO)
+
+BLACKLIST_TEXT = [
+    "ads",
+    "sponsored",
+    "https://justread.pl/IdleNinjaEmpire.php",
+    "I created a game for Android",
+    "Novels.pl",
+    "source of this content is",
+    "New novel chapters are published on",
+]
+
+BLACKLIST_SET = set(text.lower() for text in BLACKLIST_TEXT)
+
+def load_json(file_path: Path) -> Dict:
+    """Load JSON data from a file."""
+    try:
+        with file_path.open('r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        raise RuntimeError(f"Failed to load JSON from {file_path}: {e}") from e
+
+
+def save_json(data: Dict, output_path: Path) -> None:
+    """Safely save a dictionary to a JSON file."""
+    try:
+        with tempfile.NamedTemporaryFile('w', delete=False, encoding='utf-8', dir=output_path.parent) as tmp_file:
+            json.dump(data, tmp_file, indent=4, ensure_ascii=False)
+            tmp_path = Path(tmp_file.name)
+        tmp_path.replace(output_path)
+        logging.info(f"Saved JSON to: {output_path}")
+    except Exception as e:
+        raise RuntimeError(f"Failed to save JSON to {output_path}: {e}") from e
+
+
+def extract_nested_keys(source: Dict, section: str) -> Dict:
+    """
+    Extract specific keys from a nested section of a dictionary.
+
+    Args:
+        source (Dict): The entire JSON dictionary.
+        section (str): Top-level key where data is nested (e.g., 'novel').
+        keys (List[str]): List of keys to extract.
+
+    Returns:
+        Dict: Dictionary with only the selected keys.
+    """
+    nested_data = source.get(section, {})
+    return {key: nested_data[key] for key in nested_data.keys()}
+
+
+def format_chapters(
+    extracted: Dict[str, List[Dict]], keys: List[str] = ["id", "title", "body"]
+) -> None:
+    """Reduce chapter data to only specified keys."""
+    if "chapters" in extracted:
+        extracted["chapters"] = [
+            {"number": chapter.get("id"), **{k: chapter.get(k) for k in keys}}
+            for chapter in extracted["chapters"]
+        ]
+
+
+def update_chapter_body(extracted: Dict, chapter_data: Dict) -> None:
+    """Update the body of a chapter in the extracted data."""
+    chap_id = chapter_data.get("id")
+    if chap_id is not None:
+        chapters_by_id = {
+            chapter["id"]: chapter for chapter in extracted.get("chapters", [])
+        }
+        if chap_id in chapters_by_id:
+            chapters_by_id[chap_id]["body"] = clean_chapter_body(
+                chapter_data.get("body")
+            )
+        else:
+            logging.warning(f"ID {chap_id} not found in extracted data")
+    else:
+        logging.warning("Chapter ID is missing")
+
+
+def clean_chapter_body(html: str) -> str:
+    """Sanitize and remove unwanted tags from the provided html."""
+    
+    tags = nh3.ALLOWED_TAGS
+    clean_html = nh3.clean(html, tags=tags)
+
+    soup = BeautifulSoup(clean_html, "html.parser")
+
+    # remove links
+    for a_tag in soup.find_all("a"):
+        a_tag.decompose()
+
+    # Remove <p> tags if they contain any blacklisted text
+    for p_tag in soup.find_all("p"):
+        p_text = p_tag.get_text(strip=True).lower()
+        if any(bad_text in p_text for bad_text in BLACKLIST_SET):
+            p_tag.decompose()
+
+    final_html = str(soup)
+
+    final_html = final_html.replace('"', '&quot;').replace("'", '&#39;')
+
+    return final_html
+
+
+def embed_full_chapter_data(
+    extracted_path: Path, chapter_files_folder: Path, output_path: Path
+) -> None:
+    """Embed full chapter data by reading the body of each chapter and adding it."""
+
+    extracted = load_json(extracted_path)
+
+    # Iterate over all JSON chapter files in the folder
+    for chapter_file in chapter_files_folder.glob("*.json"):
+        try:
+            chapter_data = load_json(chapter_file)
+            update_chapter_body(extracted, chapter_data)
+        except RuntimeError as e:
+            logging.error(f"Failed to process {chapter_file}: {e}")
+
+    save_json(extracted, output_path)
+    logging.info(f"Full chapter data embedded and saved to: {output_path}")
+
+
+def execute(root: str):
+    input_file = Path(f"{root}/meta.json")
+    chapter_files_folder = Path(f"{root}/json")
+    output_file = Path("./output")
+
+    data = load_json(input_file)
+    extracted = extract_nested_keys(data, "novel")
+
+    format_chapters(extracted)
+
+    title_slug = slugify(extracted.get("title").lower())
+
+    output_file = output_file.resolve() / f"{title_slug}.json"
+
+    save_json(extracted, output_file)
+
+    embed_full_chapter_data(
+        extracted_path=output_file,
+        chapter_files_folder=chapter_files_folder,
+        output_path=output_file,
+    )
+
+if __name__ == "__main__":
+    execute()
