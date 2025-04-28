@@ -15,12 +15,7 @@ from scripts.metadata.funcs import dump_json, load_json
 
 AVAILIABLE_SOURCES = ["webnoveldotcom", "novelupdates"]
 
-REQUIRED_META_TAG_PROPERTIES = [
-    "og:title",
-    "og:author",
-    "og:tag",
-]
-
+# Categoris Array - (Genres) - https://www.novelupdates.com/genre-explanation/
 CATEGORIES = [
     "action",
     "adult",
@@ -56,8 +51,9 @@ CATEGORIES = [
     "xianxia",
     "xuanhuan",
     "yaoi",
-    "yuri"
+    "yuri",
 ]
+
 
 def get_source(value: str):
     match value:
@@ -65,6 +61,7 @@ def get_source(value: str):
             return WebnovelDotComSource
         case "novelupdates":
             return NovelUpdatesSource
+
 
 class MetadataSource(ABC):
     def __init__(self, root_path: Path, novel_name: str):
@@ -79,13 +76,12 @@ class MetadataSource(ABC):
 
     @property
     def url(self):
-        return self.base_url+self.novel_name
+        return self.base_url + self.novel_name
 
     @abstractmethod
     def get_metadata(self):
         pass
 
-    @abstractmethod
     def format_metadata(self, metadata_dict: Dict) -> None:
         pass
 
@@ -107,7 +103,9 @@ class MetadataSource(ABC):
             if "class" in tag.attrs:
                 del tag["class"]
 
-        final_html = str(html).replace('"', '&quot;').replace("'", '&#39;').replace("\n", "")
+        final_html = (
+            str(html).replace('"', "&quot;").replace("'", "&#39;").replace("\n", "")
+        )
 
         return final_html
 
@@ -134,15 +132,26 @@ class MetadataSource(ABC):
     def __str__(self):
         return f"{self.__class__.__name__}({self.__dict__})"
 
+
 class WebnovelDotComSource(MetadataSource):
     def __init__(self, root_path: Path, novel_name: str):
         super().__init__(root_path, novel_name)
-        self.tags_map = ["a","b","c"]
+        self.tags_map = {
+            "weaktostrong": "weak to strong",
+            "sliceoflife": "slice of life",
+            "kingdombuilding": "kingdom building",
+            "no-harem": "no harem",
+            "nonhuman": "non-human",
+            "sweetlove": "sweet love",
+            "levelup": "level up",
+            "sweetlove": "sweet love",
+        }
+        self.required_metadata_properties = ["og:title", "og:author", "og:tag"]
 
     @property
     def base_url(self):
         return "https://www.webnovel.com/book/"
-        
+
     def format_metadata(self, metadata_dict):
         """formats given dict to stalkers-api standards
 
@@ -152,8 +161,15 @@ class WebnovelDotComSource(MetadataSource):
         tags: List[str] = metadata_dict.get("tag").split(", ")
         tags = [tag.lower().strip() for tag in tags]
 
-        metadata_dict["categories"] = [genre for genre in CATEGORIES if genre.lower().strip() in tags]
-        
+        # some tags on Webnovel.com don't have spacing between words. This is a mapping to those tags. "WEAKTOSTRONG" -> "Weak to Strong"
+        tags = [
+            self.tags_map[tag] if tag in self.tags_map.keys() else tag for tag in tags
+        ]
+
+        metadata_dict["genres"] = [
+            genre for genre in CATEGORIES if genre.lower().strip() in tags
+        ]
+
         metadata_dict["tags"] = tags
         del metadata_dict["tag"]
 
@@ -168,7 +184,9 @@ class WebnovelDotComSource(MetadataSource):
             wait = WebDriverWait(driver, 10)
             # ultima meta tag
             wait.until(
-                EC.presence_of_element_located((By.XPATH, "html/head/meta[@property='og:site_name']"))
+                EC.presence_of_element_located(
+                    (By.XPATH, "html/head/meta[@property='og:site_name']")
+                )
             )
 
             meta_tags = driver.find_elements(By.XPATH, "html/head/meta")
@@ -176,7 +194,10 @@ class WebnovelDotComSource(MetadataSource):
             for meta in meta_tags:
                 meta_property = meta.get_attribute("property")
 
-                if (meta_property is not None and meta_property in REQUIRED_META_TAG_PROPERTIES):
+                if (
+                    meta_property is not None
+                    and meta_property in self.required_metadata_properties
+                ):
                     meta_name = meta_property.replace("og:", "")
                     meta_content = meta.get_attribute("content")
 
@@ -194,14 +215,13 @@ class WebnovelDotComSource(MetadataSource):
 
             dump_json(self.output_path, meta_data)
 
-            print(f"Map: {self.tags_map}")
-
             print("Meta data processed successfully!")
 
         except Exception as e:
             logging.error(f"Failed to process metadata: {e}")
         finally:
             driver.quit()
+
 
 class NovelUpdatesSource(MetadataSource):
     def __init__(self, root_path: Path, novel_name: str):
@@ -210,7 +230,7 @@ class NovelUpdatesSource(MetadataSource):
     @property
     def base_url(self):
         return "https://www.novelupdates.com/series/"
-    
+
     def get_metadata(self):
         driver = webdriver.Firefox()
         meta_data = {}
@@ -218,24 +238,31 @@ class NovelUpdatesSource(MetadataSource):
             driver.get(self.url)
 
             wait = WebDriverWait(driver, 10)
-            wait.until(
-                EC.presence_of_element_located((By.ID, "showtags"))
-            )
+            wait.until(EC.presence_of_element_located((By.ID, "showtags")))
 
             novel_title = driver.find_element(By.CSS_SELECTOR, "div.seriestitlenu").text
-            novel_author = driver.find_element(By.CSS_SELECTOR, "div#showauthors a").text
-            novel_description = driver.find_element(By.CSS_SELECTOR, "div#editdescription").get_attribute("innerHTML").strip()
+            novel_author = driver.find_element(
+                By.CSS_SELECTOR, "div#showauthors a"
+            ).text
+            novel_description = (
+                driver.find_element(By.CSS_SELECTOR, "div#editdescription")
+                .get_attribute("innerHTML")
+                .strip()
+            )
             novel_genres = driver.find_elements(By.CSS_SELECTOR, "div#seriesgenre a")
             novel_tags = driver.find_elements(By.CSS_SELECTOR, "div#showtags a")
 
-            meta_data.update({
-                "title": novel_title.lower().strip(),
-                "author": novel_author.lower().strip(),
-                "description": self.clean_html(novel_description),
-                "categories": [genre.text.lower().strip() for genre in novel_genres],
-                "tags": [tag.text.lower().strip() for tag in novel_tags],
-            })
-
+            meta_data.update(
+                {
+                    "title": novel_title.lower().strip(),
+                    "author": novel_author.lower().strip(),
+                    "description": self.clean_html(novel_description),
+                    "categories": [
+                        genre.text.lower().strip() for genre in novel_genres
+                    ],
+                    "tags": [tag.text.lower().strip() for tag in novel_tags],
+                }
+            )
 
             dump_json(self.output_path, meta_data)
 
@@ -243,20 +270,3 @@ class NovelUpdatesSource(MetadataSource):
             logging.error(f"Failed to process metadata: {e}")
         finally:
             driver.quit()
-
-
-    def format_metadata(self, metadata_dict):
-        """formats given dict to stalkers-api standards
-
-        Args:
-            metadata_dict (Dict): dict containing metadata retrieved through selenium
-        """
-        tags: List[str] = metadata_dict.get("tag").split(", ")
-        tags = [tag.lower().strip() for tag in tags]
-
-        metadata_dict["categories"] = [genre for genre in CATEGORIES if genre.lower().strip() in tags]
-        
-        metadata_dict["tags"] = tags
-        del metadata_dict["tag"]
-
-        metadata_dict["title"] = metadata_dict["title"].lower()

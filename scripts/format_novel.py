@@ -1,4 +1,3 @@
-import argparse
 import json
 import logging
 import tempfile
@@ -11,6 +10,7 @@ from slugify import slugify
 
 logging.basicConfig(level=logging.INFO)
 
+# text to remove if it is present in the html
 BLACKLIST_TEXT = [
     "ads",
     "sponsored",
@@ -19,6 +19,34 @@ BLACKLIST_TEXT = [
     "Novels.pl",
     "source of this content is",
     "New novel chapters are published on",
+]
+
+# only tags allowed in the html
+HTML_TAGS_SAFELIST = [
+    "a",
+    "b",
+    "blockquote",
+    "br",
+    "cite",
+    "code",
+    "dd",
+    "dl",
+    "dt",
+    "em",
+    "i",
+    "li",
+    "ol",
+    "p",
+    "pre",
+    "q",
+    "small",
+    "span",
+    "strike",
+    "strong",
+    "sub",
+    "sup",
+    "u",
+    "ul",
 ]
 
 BLACKLIST_SET = set(text.lower() for text in BLACKLIST_TEXT)
@@ -80,7 +108,7 @@ def update_chapter_body(extracted: Dict, chapter_data: Dict) -> None:
         }
         if chap_id in chapters_by_id:
             chapters_by_id[chap_id]["body"] = clean_chapter_body(
-                chapter_data.get("body")
+                chapter_data.get("body"), chapter_data.get("title")
             )
         else:
             logging.warning(f"ID {chap_id} not found in extracted data")
@@ -88,7 +116,7 @@ def update_chapter_body(extracted: Dict, chapter_data: Dict) -> None:
         logging.warning("Chapter ID is missing")
 
 
-def clean_chapter_body(html: str) -> str:
+def clean_chapter_body(html: str, chapter_title: str) -> str:
     """Sanitize and remove unwanted tags from the provided html."""
     
     tags = nh3.ALLOWED_TAGS
@@ -97,14 +125,24 @@ def clean_chapter_body(html: str) -> str:
     soup = BeautifulSoup(clean_html, "html.parser")
 
     # remove links
-    for a_tag in soup.find_all("a"):
-        a_tag.decompose()
+    for tag in soup.find_all():
+        if tag.name not in HTML_TAGS_SAFELIST:
+            tag.decompose()
+
+        if tag.name == "p":
+            p_text = tag.get_text(strip=True).lower()
+            if any(bad_text in p_text for bad_text in BLACKLIST_SET):
+                tag.decompose()
+
+            # Some novels have the chapter title in a <p> tag. If so, then remove it.
+            if p_text == chapter_title.lower().strip():
+                tag.decompose()
 
     # Remove <p> tags if they contain any blacklisted text
-    for p_tag in soup.find_all("p"):
-        p_text = p_tag.get_text(strip=True).lower()
-        if any(bad_text in p_text for bad_text in BLACKLIST_SET):
-            p_tag.decompose()
+    # for p_tag in soup.find_all("p"):
+    #     p_text = p_tag.get_text(strip=True).lower()
+    #     if any(bad_text in p_text for bad_text in BLACKLIST_SET):
+    #         p_tag.decompose()
 
     final_html = str(soup)
 
