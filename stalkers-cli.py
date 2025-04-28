@@ -3,7 +3,7 @@ from typing_extensions import Annotated
 
 from scripts.format_novel import execute as novel_formatter
 from scripts.metadata.sources import (AVAILIABLE_SOURCES, MetadataSource,
-                                      NovelUpdatesSource, WebnovelDotComSource)
+                                      get_source)
 
 app = typer.Typer(help="Collection of scripts that clean, extract, make requests and format a novel.")
 
@@ -15,14 +15,12 @@ OPTIONS_HELP_TEXT = {
 
 def source_callback(value: str) -> MetadataSource:
     """Verifiy source provided and if found, returns Source callback"""
-    if value.lower() not in AVAILIABLE_SOURCES:
+    value = value.lower().strip()
+
+    if value not in AVAILIABLE_SOURCES:
         raise typer.BadParameter(typer.style(f"Available sources are: ['WebnovelDotCom', 'LightnovelUpdates']. Choose one of them!", fg=typer.colors.RED, bold=True))
-    
-    match value:
-        case "webnoveldotcom":
-            return WebnovelDotComSource
-        case "lightnovelupdates":
-            return WebnovelDotComSource
+
+    return value
 
 @app.command('metadata', help="This script extracts some required metadatas of a given novel.")
 def get_metadata(
@@ -30,7 +28,7 @@ def get_metadata(
     source: Annotated[str, typer.Option('--source','-s', help=OPTIONS_HELP_TEXT["source"], callback=source_callback, prompt=True)] = None,
     novel_uri: Annotated[str, typer.Option('--novel-uri', '-u',help=OPTIONS_HELP_TEXT["novel_uri"], prompt="Novel URI")] = None
 ):
-    metadata_source = source(root, novel_uri)
+    metadata_source = get_source(source)(root, novel_uri)
     metadata_source.execute()
 
 
@@ -47,7 +45,7 @@ def full_format(
     source: Annotated[str, typer.Option('--source','-s', help=OPTIONS_HELP_TEXT["source"], callback=source_callback, prompt=True)] = None,
     novel_uri: Annotated[str, typer.Option('--novel-uri', '-u',help=OPTIONS_HELP_TEXT["novel_uri"], prompt="Novel URI")] = None
 ):
-    metadata_source = source(root, novel_uri)
+    metadata_source = get_source(source)(root, novel_uri)
     metadata_source.execute()
     novel_formatter(root)
 

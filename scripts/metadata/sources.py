@@ -1,4 +1,5 @@
 import logging
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List
@@ -12,7 +13,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from scripts.metadata.funcs import dump_json, load_json
 
-AVAILIABLE_SOURCES = ["webnoveldotcom", "lightnovelupdates"]
+AVAILIABLE_SOURCES = ["webnoveldotcom", "novelupdates"]
 
 REQUIRED_META_TAG_PROPERTIES = [
     "og:title",
@@ -58,10 +59,12 @@ CATEGORIES = [
     "yuri"
 ]
 
-def get_source(root: str, novel_uri: str, value: str):
+def get_source(value: str):
     match value:
         case "webnoveldotcom":
             return WebnovelDotComSource
+        case "novelupdates":
+            return NovelUpdatesSource
 
 class MetadataSource(ABC):
     def __init__(self, root_path: Path, novel_name: str):
@@ -95,18 +98,16 @@ class MetadataSource(ABC):
         Returns:
             str: formatted html
         """
-        soup = BeautifulSoup(html, "html.parser")
-
         nh3_tags = nh3.ALLOWED_TAGS
         html = nh3.clean(html, tags=nh3_tags)
+
+        soup = BeautifulSoup(html, "html.parser")
 
         for tag in soup.find_all():
             if "class" in tag.attrs:
                 del tag["class"]
 
-        final_html = str(soup)
-
-        final_html = final_html.replace('"', '&quot;').replace("'", '&#39;')
+        final_html = str(html).replace('"', '&quot;').replace("'", '&#39;').replace("\n", "")
 
         return final_html
 
@@ -136,6 +137,7 @@ class MetadataSource(ABC):
 class WebnovelDotComSource(MetadataSource):
     def __init__(self, root_path: Path, novel_name: str):
         super().__init__(root_path, novel_name)
+        self.tags_map = ["a","b","c"]
 
     @property
     def base_url(self):
@@ -192,6 +194,8 @@ class WebnovelDotComSource(MetadataSource):
 
             dump_json(self.output_path, meta_data)
 
+            print(f"Map: {self.tags_map}")
+
             print("Meta data processed successfully!")
 
         except Exception as e:
@@ -208,5 +212,51 @@ class NovelUpdatesSource(MetadataSource):
         return "https://www.novelupdates.com/series/"
     
     def get_metadata(self):
-        pass
-    
+        driver = webdriver.Firefox()
+        meta_data = {}
+        try:
+            driver.get(self.url)
+
+            wait = WebDriverWait(driver, 10)
+            wait.until(
+                EC.presence_of_element_located((By.ID, "showtags"))
+            )
+
+            novel_title = driver.find_element(By.CSS_SELECTOR, "div.seriestitlenu").text
+            novel_author = driver.find_element(By.CSS_SELECTOR, "div#showauthors a").text
+            novel_description = driver.find_element(By.CSS_SELECTOR, "div#editdescription").get_attribute("innerHTML").strip()
+            novel_genres = driver.find_elements(By.CSS_SELECTOR, "div#seriesgenre a")
+            novel_tags = driver.find_elements(By.CSS_SELECTOR, "div#showtags a")
+
+            meta_data.update({
+                "title": novel_title.lower().strip(),
+                "author": novel_author.lower().strip(),
+                "description": self.clean_html(novel_description),
+                "categories": [genre.text.lower().strip() for genre in novel_genres],
+                "tags": [tag.text.lower().strip() for tag in novel_tags],
+            })
+
+
+            dump_json(self.output_path, meta_data)
+
+        except Exception as e:
+            logging.error(f"Failed to process metadata: {e}")
+        finally:
+            driver.quit()
+
+
+    def format_metadata(self, metadata_dict):
+        """formats given dict to stalkers-api standards
+
+        Args:
+            metadata_dict (Dict): dict containing metadata retrieved through selenium
+        """
+        tags: List[str] = metadata_dict.get("tag").split(", ")
+        tags = [tag.lower().strip() for tag in tags]
+
+        metadata_dict["categories"] = [genre for genre in CATEGORIES if genre.lower().strip() in tags]
+        
+        metadata_dict["tags"] = tags
+        del metadata_dict["tag"]
+
+        metadata_dict["title"] = metadata_dict["title"].lower()

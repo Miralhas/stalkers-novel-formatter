@@ -137,6 +137,9 @@ def execute(root: str):
     chapter_files_folder = Path(f"{root}/json")
     output_file = Path("./output")
 
+    # create ./output folder
+    output_file.mkdir(parents=True, exist_ok=True)
+
     data = load_json(input_file)
     extracted = extract_nested_keys(data, "novel")
 
