@@ -145,6 +145,7 @@ class WebnovelDotComSource(MetadataSource):
             "sweetlove": "sweet love",
             "levelup": "level up",
             "sweetlove": "sweet love",
+            "thestrongactingweak": "the strong acting weak"
         }
         self.required_metadata_properties = ["og:title", "og:author", "og:tag"]
 
@@ -257,9 +258,7 @@ class NovelUpdatesSource(MetadataSource):
                     "title": novel_title.lower().strip(),
                     "author": novel_author.lower().strip(),
                     "description": self.clean_html(novel_description),
-                    "categories": [
-                        genre.text.lower().strip() for genre in novel_genres
-                    ],
+                    "genres": [genre.text.lower().strip() for genre in novel_genres],
                     "tags": [tag.text.lower().strip() for tag in novel_tags],
                 }
             )
