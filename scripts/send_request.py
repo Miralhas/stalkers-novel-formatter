@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict
 
 import requests
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
 from rich import print
 
 load_dotenv()
@@ -12,6 +12,19 @@ load_dotenv()
 BASE_URL = os.getenv("BASE_URL")
 ROBOT_HEADER = os.getenv("ROBOT_HEADER")
 ROBOT_SECRET = os.getenv("ROBOT_SECRET")
+
+required_keys = ["BASE_URL", "ROBOT_HEADER", "ROBOT_SECRET"]
+missing_keys = [key for key in required_keys if key not in dotenv_values(".env")]
+
+if missing_keys:
+    raise EnvironmentError(
+        f"Missing required environment variables: {', '.join(missing_keys)}. "
+        "Please ensure these keys are set in the .env file."
+    )
+
+# assert BASE_URL is not None and ROBOT_HEADER is not None and ROBOT_SECRET is not None, "Missing or invalid environment variables. Please ensure all required keys are correctly set in the .env file."
+# assert ROBOT_HEADER is not None, "Load a .env file"
+# assert ROBOT_SECRET is not None, "Load a .env file"
 
 def load_json(file_path: Path) -> Dict:
     """Load JSON data from a file."""
