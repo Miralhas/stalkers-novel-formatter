@@ -22,21 +22,21 @@ def json_to_sql():
     sql_folder.mkdir(parents=True, exist_ok=True)
     
 
-    for index, file in enumerate(genres_and_tags_folder.glob("*.json")):
+    for file in genres_and_tags_folder.glob("*.json"):
         try:
             json_dict = load_json(file)
-            file_name = file.name.removesuffix(".json").split("_")[1]
-            insert = f"""INSERT INTO {file_name}(NAME, DESCRIPTION) VALUES"""
+            file_name = file.name.removesuffix(".json")
+            insert = f"""INSERT INTO (NAME, DESCRIPTION) VALUES"""
 
-            for element in json_dict:
+            for index, element in enumerate(json_dict):
+                isLastElement = index == len(json_dict)-1
+
                 insert+= f'("{element["name"].strip()}"'
                 if (element["description"] is not None):
-                    insert+= f', "{element["description"].strip()}"),'
+                    insert+= f', "{element["description"].strip()}"){'' if isLastElement else ','}'
                 else:
-                    insert+= ", null),"
-
-            insert.removesuffix(",")
-
+                    insert+= f", null){'' if isLastElement else ','}"
+                
             with open(f"{sql_folder}/{file_name}{index}.sql", 'w', encoding='utf-8') as sql_file:
                 sql_file.write(insert)
 

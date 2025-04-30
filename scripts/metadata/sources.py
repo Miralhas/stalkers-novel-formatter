@@ -256,7 +256,7 @@ class NovelUpdatesSource(MetadataSource):
             meta_data.update(
                 {
                     "title": novel_title.lower().strip(),
-                    "author": novel_author.lower().strip(),
+                    "author": novel_author.strip(),
                     "description": self.clean_html(novel_description),
                     "genres": [genre.text.lower().strip() for genre in novel_genres],
                     "tags": [tag.text.lower().strip() for tag in novel_tags],
