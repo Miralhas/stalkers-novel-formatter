@@ -79,13 +79,19 @@ def extract_nested_keys(source: Dict, section: str) -> Dict:
     Args:
         source (Dict): The entire JSON dictionary.
         section (str): Top-level key where data is nested (e.g., 'novel').
-        keys (List[str]): List of keys to extract.
-
     Returns:
         Dict: Dictionary with only the selected keys.
     """
     nested_data = source.get(section, {})
-    return {key: nested_data[key] for key in nested_data.keys()}
+    keys_dict = {}
+    for key in nested_data.keys():
+        if key == "chapters":
+            # remove every chapter file that failed (was not downloaded)
+            nested_data["chapters"][:] = [chapter for chapter in nested_data["chapters"] if chapter["success"] != False]
+        keys_dict.update({key: nested_data[key]})
+
+    # return {key: nested_data[key] for key in nested_data.keys()}
+    return keys_dict
 
 
 def format_chapters(
@@ -103,9 +109,9 @@ def update_chapter_body(extracted: Dict, chapter_data: Dict) -> None:
     """Update the body of a chapter in the extracted data."""
     chap_id = chapter_data.get("id")
     if chap_id is not None:
-        chapters_by_id = {
-            chapter["id"]: chapter for chapter in extracted.get("chapters", [])
-        }
+        
+        chapters_by_id = {chapter["id"]: chapter for chapter in extracted.get("chapters", [])}
+        
         if chap_id in chapters_by_id:
             chapters_by_id[chap_id]["body"] = clean_chapter_body(
                 chapter_data.get("body"), chapter_data.get("title")
@@ -138,12 +144,6 @@ def clean_chapter_body(html: str, chapter_title: str) -> str:
             if p_text == chapter_title.lower().strip():
                 tag.decompose()
 
-    # Remove <p> tags if they contain any blacklisted text
-    # for p_tag in soup.find_all("p"):
-    #     p_text = p_tag.get_text(strip=True).lower()
-    #     if any(bad_text in p_text for bad_text in BLACKLIST_SET):
-    #         p_tag.decompose()
-
     final_html = str(soup)
 
     final_html = final_html.replace('"', '&quot;').replace("'", '&#39;')
@@ -173,19 +173,16 @@ def embed_full_chapter_data(
 def execute(root: str):
     input_file = Path(f"{root}/meta.json")
     chapter_files_folder = Path(f"{root}/json")
-    output_file = Path("./output")
-
-    # create ./output folder
-    output_file.mkdir(parents=True, exist_ok=True)
 
     data = load_json(input_file)
     extracted = extract_nested_keys(data, "novel")
 
     format_chapters(extracted)
 
-    title_slug = slugify(extracted.get("title").lower())
+    output_folder = Path(f"{root}/formatted-novel")
+    output_folder.mkdir(parents=True, exist_ok=True)
 
-    output_file = output_file.resolve() / f"{title_slug}.json"
+    output_file = Path(f"{output_folder}/novel.json")
 
     save_json(extracted, output_file)
 
@@ -196,4 +193,4 @@ def execute(root: str):
     )
 
 if __name__ == "__main__":
-    execute()
+    execute("C:/Users/bob/Desktop/NovelOutput/OutsideOfTime/800")

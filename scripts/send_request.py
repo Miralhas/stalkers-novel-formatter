@@ -33,6 +33,7 @@ def load_json(file_path: Path) -> Dict:
             return json.load(f)
     except Exception as e:
         raise RuntimeError(f"Failed to load JSON from {file_path}: {e}") from e
+    
 
 def post_novel(novel_path: Path) -> requests.Response:
     data = load_json(novel_path)
@@ -45,6 +46,7 @@ def post_novel(novel_path: Path) -> requests.Response:
 
     print(f"Sending novel POST request to '{url}'")
     r = requests.post(url, headers=headers, data=json.dumps(data), timeout=30)
+    
     return r
 
 
@@ -65,8 +67,38 @@ def put_novel_image(root_path: Path, novel_slug: str) -> requests.Response:
     r = requests.put(url, headers=headers, files=files, data=payload, timeout=30)
     print(r.json())
 
+
+def post_novel_chapters(novel_path: Path, novel_slug: str):
+    data = load_json(novel_path)
+    url = f"{BASE_URL}/api/novels/{novel_slug}/chapters/save-bulk"
     
-def send_request(with_image: bool, novel_path: Path, root_path: Path):
+    headers = {
+        ROBOT_HEADER: ROBOT_SECRET,
+        "Content-Type": "application/json",
+    }
+
+    print(f"Sending novel POST request to '{url}'")
+    r = requests.post(url, headers=headers, data=json.dumps(data), timeout=30)
+    
+    return r
+
+
+def bulk_chapters_request(root_path: Path, novel_slug):
+    novel_path = Path(f"{root_path}/formatted-novel/novel.json")
+    try:
+        r = post_novel_chapters(novel_path=novel_path, novel_slug=novel_slug)
+        r.raise_for_status()
+        print(f"Request was successful!")
+    except requests.HTTPError as ex:
+        print(f"Failed with a response code of '{r.status_code}'! \n{r.json()}")
+    except requests.Timeout:
+        print("Faile because request timed out!")
+    except Exception as e:
+        print(f"Erro ao fazer requisição! \n{e}")
+
+
+def novel_request(with_image: bool, root_path: Path):
+    novel_path = Path(f"{root_path}/formatted-novel/novel.json")
     try:
         r = post_novel(novel_path=novel_path)
         r.raise_for_status()
